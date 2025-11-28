@@ -9,14 +9,14 @@ import { Check, Loader2, Sparkles, Zap } from "lucide-react";
 // Substitua pelos seus IDs de preço da Stripe REAIS
 const PLANOS = {
   mensal: {
-    id: "price_1Q...", // <--- COLE SEU PRICE_ID MENSAL AQUI
+    id: "price_1SYFzzRMYU0tPtvw8gyYCoWO",
     nome: "Mensal",
     preco: "R$ 39,90",
     periodo: "/mês",
     destaque: false,
   },
   anual: {
-    id: "price_1Q...", // <--- COLE SEU PRICE_ID ANUAL AQUI
+    id: "price_1SYG0HRMYU0tPtvwsUhgl67u",
     nome: "Anual",
     preco: "R$ 397,00",
     periodo: "/ano",
@@ -29,7 +29,7 @@ export default function Assinatura() {
   const [loading, setLoading] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleCheckout = async (priceId: string, plano: string) => {
+    const handleCheckout = async (priceId: string, plano: string) => {
     try {
       setLoading(plano);
       const { data: { session } } = await supabase.auth.getSession();
@@ -39,7 +39,6 @@ export default function Assinatura() {
         return;
       }
 
-      // Chama a Edge Function para criar o checkout
       const { data, error } = await supabase.functions.invoke('create-checkout', {
         body: { 
           price_id: priceId,
@@ -48,24 +47,35 @@ export default function Assinatura() {
         },
       });
 
-      if (error) throw error;
-      if (!data?.url) throw new Error("Erro ao gerar link de pagamento");
+      if (error) {
+        // Tenta ler a mensagem de erro que o backend enviou
+        let errorMessage = "Erro desconhecido";
+        try {
+            // O corpo da resposta de erro vem aqui
+            const errorBody = await error.context.json();
+            errorMessage = errorBody.error || error.message;
+        } catch {
+            errorMessage = error.message || "Falha na comunicação com o servidor";
+        }
+        throw new Error(errorMessage);
+      }
 
-      // Redireciona para a Stripe
+      if (!data?.url) throw new Error("Link de pagamento não recebido");
+
       window.location.href = data.url;
 
     } catch (error: any) {
-      console.error(error);
+      console.error("Erro detalhado:", error);
       toast({ 
         title: "Erro ao iniciar pagamento", 
-        description: error.message || "Tente novamente mais tarde", 
+        description: error.message, // Agora vai mostrar o motivo real!
         variant: "destructive" 
       });
     } finally {
       setLoading(null);
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col items-center justify-center p-4 animate-in fade-in duration-700">
       <div className="text-center mb-10 max-w-2xl">

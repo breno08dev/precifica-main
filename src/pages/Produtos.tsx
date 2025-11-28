@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, X, ShoppingBag, Scale, DollarSign, TrendingUp, TrendingDown, Info } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ProdutoFinal, Insumo, ProdutoPreparado } from "@/types/database";
+import { ContentLock } from "@/components/ContentLock";
 
 type ItemProduto = {
   id_temp: string;
@@ -276,6 +277,7 @@ export default function Produtos() {
   };
 
   return (
+    <ContentLock>
     <div className="space-y-6 animate-in fade-in duration-500">
       
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -526,5 +528,6 @@ export default function Produtos() {
         </div>
       )}
     </div>
+ </ContentLock>
   );
 }

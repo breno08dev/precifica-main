@@ -1,59 +1,91 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import Stripe from "https://esm.sh/stripe@12.0.0"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Stripe from "https://esm.sh/stripe@14.0.0"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+console.log("Webhook V3: Com Data de Vencimento")
 
-serve(async (req) => {
-  // 1. Configurações de CORS (Permite que seu Front-end chame essa função)
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+serve(async (req: Request) => {
+  const signature = req.headers.get('Stripe-Signature')
+  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY')
+  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+  if (!signature || !stripeKey || !webhookSecret) return new Response('Config Error', { status: 400 })
+
+  const stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16', httpClient: Stripe.createFetchHttpClient() })
+  const supabase = createClient(supabaseUrl!, supabaseServiceKey!)
 
   try {
-    // 2. Inicializa a Stripe com a chave que está no cofre do Supabase
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
-      apiVersion: '2022-11-15',
-    })
+    const body = await req.text()
+    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret)
 
-    // 3. Recebe os dados do Front-end
-    const { price_id, user_id, return_url } = await req.json()
+    // 1. ATIVAÇÃO INICIAL (Checkout realizado)
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as any;
+      const userId = session.client_reference_id;
+      const customerId = session.customer;
 
-    console.log(`Iniciando checkout para user: ${user_id} com price: ${price_id}`)
+      if (userId) {
+        // Recupera a assinatura para pegar a data de vencimento correta
+        const subscriptionId = session.subscription;
+        let expiresAt = null;
+        
+        if (subscriptionId) {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
+        }
 
-    // 4. Cria a Sessão de Pagamento na Stripe
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: price_id, // O ID do plano (price_...)
-          quantity: 1,
-        },
-      ],
-      mode: 'subscription', // Assinatura recorrente
-      success_url: `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${return_url}`,
-      client_reference_id: user_id, // Guardamos o ID do usuário para saber quem pagou depois
-    })
-
-    // 5. Devolve o link de pagamento para o Front-end redirecionar
-    return new Response(
-      JSON.stringify({ url: session.url }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+        await supabase.from('profiles').update({ 
+          plano: 'pro',
+          stripe_customer_id: customerId,
+          subscription_expires_at: expiresAt
+        }).eq('id', userId);
+        
+        console.log(`✅ Plano PRO ativado para ${userId}. Vence em: ${expiresAt}`);
       }
-    )
-  } catch (error) {
-    console.error("Erro na função:", error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+    }
+
+    // 2. RENOVAÇÃO OU ATUALIZAÇÃO (Stripe avisa que renovou o ciclo)
+    else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
+      const subscription = event.data.object as any;
+      const customerId = subscription.customer;
+      const expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
+      const status = subscription.status;
+
+      // Só atualiza se o status for ativo ou trial
+      if (status === 'active' || status === 'trialing') {
+        await supabase
+          .from('profiles')
+          .update({ 
+            plano: 'pro',
+            subscription_expires_at: expiresAt 
+          })
+          .eq('stripe_customer_id', customerId);
+          
+        console.log(`🔄 Assinatura renovada para cliente ${customerId}. Nova validade: ${expiresAt}`);
       }
-    )
+    }
+
+    // 3. CANCELAMENTO
+    else if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as any;
+      const customerId = subscription.customer;
+
+      await supabase
+        .from('profiles')
+        .update({ 
+          plano: 'free',
+          subscription_expires_at: null 
+        })
+        .eq('stripe_customer_id', customerId);
+
+      console.log(`🛑 Plano cancelado para cliente ${customerId}`);
+    }
+
+    return new Response(JSON.stringify({ received: true }), { status: 200 })
+  } catch (err: any) {
+    console.error(`Erro: ${err.message}`)
+    return new Response(err.message, { status: 400 })
   }
 })

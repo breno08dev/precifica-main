@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, X, ChefHat, Scale } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ProdutoPreparado, Insumo } from "@/types/database";
+import { ContentLock } from "@/components/ContentLock";
 
 const UNIDADES_RENDIMENTO = [
   { value: "kg", label: "Quilogramas (kg)", suffix: "kg", factor: 1000 },
@@ -276,6 +277,7 @@ export default function Preparados() {
     }).format(val);
 
   return (
+    <ContentLock>
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -515,5 +517,6 @@ export default function Preparados() {
         </div>
       )}
     </div>
+  </ContentLock>
   );
 }

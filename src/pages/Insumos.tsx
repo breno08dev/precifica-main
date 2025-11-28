@@ -11,6 +11,7 @@ import { Plus, Pencil, Trash2, Calculator, Package, Scale, AlertTriangle } from 
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Insumo } from "@/types/database";
+import { ContentLock } from "@/components/ContentLock";
 
 const UNIDADES_COMPRA = [
   { value: "kg", label: "Quilograma (kg)", unit: "g", factor: 1000, type: "mass" },
@@ -200,6 +201,7 @@ export default function Insumos() {
   };
 
   return (
+    <ContentLock>
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -452,5 +454,6 @@ export default function Insumos() {
         </div>
       )}
     </div>
+    </ContentLock>
   );
 }

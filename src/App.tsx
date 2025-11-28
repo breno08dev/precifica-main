@@ -14,6 +14,7 @@ import Insumos from "./pages/Insumos";
 import Preparados from "./pages/Preparados";
 import Produtos from "./pages/Produtos";
 import Assinatura from "./pages/Assinatura";
+import Manual from "./pages/Manual"; // <--- Importei o Manual
 import NotFound from "./pages/NotFound";
 import { ChefHat } from "lucide-react";
 
@@ -30,6 +31,7 @@ const PageTitle = () => {
   else if (path === "/preparados") pageName = "Produtos Preparados";
   else if (path === "/produtos") pageName = "Cardápio";
   else if (path === "/assinatura") pageName = "Planos & Assinatura";
+  else if (path === "/manual") pageName = "Manual do Usuário"; // <--- ADICIONADO TÍTULO
 
   return (
     <div className="flex items-center gap-2 ml-4 transition-all">
@@ -39,7 +41,7 @@ const PageTitle = () => {
         <span className="font-bold text-xl tracking-tight">PrecificaAi</span>
       </div>
 
-      {/* Divisor e Nome da Página (só aparece se tiver página definida) */}
+      {/* Divisor e Nome da Página */}
       {pageName && (
         <>
           <span className="text-muted-foreground/30 text-2xl font-light mx-1">/</span>
@@ -134,6 +136,17 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Assinatura />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            {/* NOVA ROTA DO MANUAL (Não bloqueada pelo ContentLock, mas protegida por login) */}
+            <Route
+              path="/manual"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Manual />
                   </AppLayout>
                 </ProtectedRoute>
               }
