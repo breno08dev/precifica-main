@@ -79,7 +79,7 @@ const Auth = () => {
             {isLogin ? "Entrar" : "Criar Conta"}
           </CardTitle>
           <CardDescription>
-            Sistema de precificação para lanchonetes
+            Sistema de Precificação para Empresas
           </CardDescription>
         </CardHeader>
         <CardContent>

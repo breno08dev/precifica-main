@@ -1,4 +1,4 @@
-import { Home, Package, Beaker, ShoppingBag, LogOut } from "lucide-react";
+import { Home, Package, Beaker, ShoppingBag, LogOut, CreditCard } from "lucide-react"; // Adicionei CreditCard
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "Insumos", url: "/insumos", icon: Package },
   { title: "Preparados", url: "/preparados", icon: Beaker },
   { title: "Produtos Finais", url: "/produtos", icon: ShoppingBag },
+  { title: "Planos & Assinatura", url: "/assinatura", icon: CreditCard }, // <--- NOVO ITEM
 ];
 
 export function AppSidebar() {

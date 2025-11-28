@@ -3,19 +3,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, X, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, ShoppingBag, Scale, DollarSign, TrendingUp, TrendingDown, Info } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ProdutoFinal, Insumo, ProdutoPreparado } from "@/types/database";
 
 type ItemProduto = {
+  id_temp: string;
   item_id: string;
   tipo_item: 'insumo' | 'preparado';
-  quantidade_usada: number;
-  custo: number;
-  nome?: string;
+  nome: string;
+  unidade_uso: string;
+  quantidade: number;
+  custo_unitario: number;
+  custo_total: number;
 };
 
 export default function Produtos() {
@@ -26,17 +30,16 @@ export default function Produtos() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    nome: "",
-    preco_venda: "",
-  });
+  const [nomeProduto, setNomeProduto] = useState("");
+  const [precoVenda, setPrecoVenda] = useState("");
 
-  const [itens, setItens] = useState<ItemProduto[]>([]);
-  const [currentItem, setCurrentItem] = useState({
-    item_id: "",
-    tipo_item: "insumo" as 'insumo' | 'preparado',
-    quantidade_usada: "",
-  });
+  const [itensReceita, setItensReceita] = useState<ItemProduto[]>([]);
+  const [itemSelecionadoId, setItemSelecionadoId] = useState("");
+  const [qtdItem, setQtdItem] = useState("");
+
+  const [custoTotal, setCustoTotal] = useState(0);
+  const [cmv, setCmv] = useState(0); 
+  const [lucroLiquido, setLucroLiquido] = useState(0);
 
   useEffect(() => {
     fetchProdutos();
@@ -44,17 +47,30 @@ export default function Produtos() {
     fetchPreparados();
   }, []);
 
+  useEffect(() => {
+    const totalCusto = itensReceita.reduce((acc, item) => acc + item.custo_total, 0);
+    setCustoTotal(totalCusto);
+
+    const venda = parseFloat(precoVenda) || 0;
+    
+    if (venda > 0 && totalCusto > 0) {
+      const lucro = venda - totalCusto;
+      setLucroLiquido(lucro);
+      setCmv((totalCusto / venda) * 100);
+    } else {
+      setLucroLiquido(0);
+      setCmv(0);
+    }
+  }, [itensReceita, precoVenda]);
+
   const fetchProdutos = async () => {
     const { data, error } = await supabase
       .from("produtos_finais")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) {
-      toast({ title: "Erro ao carregar produtos", variant: "destructive" });
-    } else {
-      setProdutos(data || []);
-    }
+    if (error) toast({ title: "Erro ao carregar produtos", variant: "destructive" });
+    else setProdutos(data || []);
   };
 
   const fetchInsumos = async () => {
@@ -67,46 +83,53 @@ export default function Produtos() {
     setPreparados(data || []);
   };
 
-  const addItem = () => {
-    if (!currentItem.item_id || !currentItem.quantidade_usada) {
-      toast({ title: "Preencha todos os campos do item", variant: "destructive" });
-      return;
-    }
+  const adicionarItem = () => {
+    if (!itemSelecionadoId || !qtdItem) return;
 
-    let custoItem = 0;
     let nomeItem = "";
+    let unidadeItem = "";
+    let custoRealUnitario = 0;
+    let tipo: 'insumo' | 'preparado' = 'insumo';
 
-    if (currentItem.tipo_item === "insumo") {
-      const insumo = insumos.find(i => i.id === currentItem.item_id);
-      if (!insumo) return;
-      custoItem = (insumo.custo_por_porcao || 0) * parseFloat(currentItem.quantidade_usada);
+    const insumo = insumos.find(i => i.id === itemSelecionadoId);
+    
+    if (insumo) {
       nomeItem = insumo.nome;
+      unidadeItem = insumo.unidade_de_uso;
+      custoRealUnitario = insumo.preco_compra / insumo.quantidade_comprada;
     } else {
-      const preparado = preparados.find(p => p.id === currentItem.item_id);
-      if (!preparado) return;
-      custoItem = (preparado.custo_por_unidade || 0) * parseFloat(currentItem.quantidade_usada);
-      nomeItem = preparado.nome;
+      const prep = preparados.find(p => p.id === itemSelecionadoId);
+      if (prep) {
+        nomeItem = prep.nome;
+        unidadeItem = "un/porção"; 
+        custoRealUnitario = (prep.custo_por_unidade || 0); 
+        tipo = 'preparado';
+      } else {
+        return;
+      }
     }
 
-    setItens([
-      ...itens,
-      {
-        ...currentItem,
-        quantidade_usada: parseFloat(currentItem.quantidade_usada),
-        custo: custoItem,
-        nome: nomeItem,
-      },
-    ]);
+    const qtd = parseFloat(qtdItem);
+    const custoItem = custoRealUnitario * qtd;
 
-    setCurrentItem({
-      item_id: "",
-      tipo_item: "insumo",
-      quantidade_usada: "",
-    });
+    const novoItem: ItemProduto = {
+      id_temp: Math.random().toString(36).substr(2, 9),
+      item_id: itemSelecionadoId,
+      tipo_item: tipo,
+      nome: nomeItem,
+      unidade_uso: unidadeItem,
+      quantidade: qtd,
+      custo_unitario: custoRealUnitario,
+      custo_total: custoItem
+    };
+
+    setItensReceita([...itensReceita, novoItem]);
+    setItemSelecionadoId("");
+    setQtdItem("");
   };
 
-  const removeItem = (index: number) => {
-    setItens(itens.filter((_, i) => i !== index));
+  const removerItem = (id_temp: string) => {
+    setItensReceita(itensReceita.filter(i => i.id_temp !== id_temp));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,19 +137,19 @@ export default function Produtos() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
-    if (itens.length === 0) {
-      toast({ title: "Adicione ao menos um item", variant: "destructive" });
+    if (itensReceita.length === 0) {
+      toast({ title: "Adicione a composição do produto", variant: "destructive" });
       return;
     }
 
-    const custoTotal = itens.reduce((acc, item) => acc + item.custo, 0);
-
     const produtoPayload = {
-      nome: formData.nome,
-      preco_venda: parseFloat(formData.preco_venda),
-      custo_total: custoTotal,
-      user_id: session.user.id,
+      nome: nomeProduto,
+      preco_venda: parseFloat(precoVenda),
+      custo_total: custoTotal, 
+      // user_id removido: O banco insere automaticamente via DEFAULT auth.uid()
     };
+
+    let produtoId = editingId;
 
     if (editingId) {
       const { error } = await supabase
@@ -138,280 +161,370 @@ export default function Produtos() {
         toast({ title: "Erro ao atualizar", variant: "destructive" });
         return;
       }
-
+      
       await supabase.from("produtos_finais_itens").delete().eq("produto_id", editingId);
-
-      const itensPayload = itens.map(item => ({
-        produto_id: editingId,
-        user_id: session.user.id,
-        item_id: item.item_id,
-        tipo_item: item.tipo_item,
-        quantidade_usada: item.quantidade_usada,
-        custo: item.custo,
-      }));
-
-      const { error: itensError } = await supabase
-        .from("produtos_finais_itens")
-        .insert(itensPayload);
-
-      if (itensError) {
-        toast({ title: "Erro ao salvar itens", variant: "destructive" });
-        return;
-      }
-
-      toast({ title: "Produto atualizado!" });
     } else {
-      const { data: produtoData, error } = await supabase
+      const { data, error } = await supabase
         .from("produtos_finais")
         .insert(produtoPayload)
         .select()
         .single();
 
-      if (error || !produtoData) {
+      if (error || !data) {
         toast({ title: "Erro ao criar produto", variant: "destructive" });
         return;
       }
-
-      const itensPayload = itens.map(item => ({
-        produto_id: produtoData.id,
-        user_id: session.user.id,
-        item_id: item.item_id,
-        tipo_item: item.tipo_item,
-        quantidade_usada: item.quantidade_usada,
-        custo: item.custo,
-      }));
-
-      const { error: itensError } = await supabase
-        .from("produtos_finais_itens")
-        .insert(itensPayload);
-
-      if (itensError) {
-        toast({ title: "Erro ao salvar itens", variant: "destructive" });
-        return;
-      }
-
-      toast({ title: "Produto criado!" });
+      produtoId = data.id;
     }
 
+    if (produtoId) {
+      const itensParaSalvar = itensReceita.map(item => ({
+        produto_id: produtoId,
+        // user_id removido
+        item_id: item.item_id,
+        tipo_item: item.tipo_item,
+        quantidade_usada: item.quantidade,
+        custo: item.custo_total,
+      }));
+
+      const { error } = await supabase.from("produtos_finais_itens").insert(itensParaSalvar);
+      if (error) console.error("Erro ao salvar itens:", error);
+    }
+
+    toast({ title: editingId ? "Produto atualizado!" : "Produto criado com sucesso!" });
     setOpen(false);
     resetForm();
     fetchProdutos();
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase
-      .from("produtos_finais")
-      .delete()
-      .eq("id", id);
+  const handleEdit = async (produto: ProdutoFinal) => {
+    setEditingId(produto.id);
+    setNomeProduto(produto.nome);
+    setPrecoVenda(produto.preco_venda.toString());
 
-    if (error) {
-      toast({ title: "Erro ao excluir", variant: "destructive" });
-    } else {
+    const { data: itensData } = await supabase
+      .from("produtos_finais_itens")
+      .select("*")
+      .eq("produto_id", produto.id);
+
+    if (itensData) {
+      const itensReconstruidos: ItemProduto[] = itensData.map(item => {
+        let nome = "Item Removido";
+        let unidade = "?";
+        
+        if (item.tipo_item === 'insumo') {
+          const insumo = insumos.find(i => i.id === item.item_id);
+          if (insumo) {
+            nome = insumo.nome;
+            unidade = insumo.unidade_de_uso;
+          }
+        } else {
+          const prep = preparados.find(p => p.id === item.item_id);
+          if (prep) {
+            nome = prep.nome;
+            unidade = "un";
+          }
+        }
+
+        return {
+          id_temp: Math.random().toString(),
+          item_id: item.item_id,
+          tipo_item: item.tipo_item as 'insumo' | 'preparado',
+          nome: nome,
+          unidade_uso: unidade,
+          quantidade: item.quantidade_usada,
+          custo_total: item.custo,
+          custo_unitario: item.quantidade_usada > 0 ? item.custo / item.quantidade_usada : 0
+        };
+      });
+      setItensReceita(itensReconstruidos);
+    }
+
+    setOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("produtos_finais").delete().eq("id", id);
+    if (!error) {
       toast({ title: "Produto excluído!" });
       fetchProdutos();
     }
   };
 
   const resetForm = () => {
-    setFormData({ nome: "", preco_venda: "" });
-    setItens([]);
-    setCurrentItem({ item_id: "", tipo_item: "insumo", quantidade_usada: "" });
+    setNomeProduto("");
+    setPrecoVenda("");
+    setItensReceita([]);
     setEditingId(null);
+    setCustoTotal(0);
+    setCmv(0);
+    setLucroLiquido(0);
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat("pt-BR", { 
+      style: "currency", 
+      currency: "BRL", 
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2 
+    }).format(val);
+
+  const getCmvStatus = (percent: number) => {
+    if (percent <= 32) return "bg-green-100 text-green-700 border-green-200";
+    if (percent <= 40) return "bg-orange-100 text-orange-700 border-orange-200";
+    return "bg-red-100 text-red-700 border-red-200";
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Produtos Finais</h1>
-          <p className="text-muted-foreground mt-1">Itens do cardápio para venda</p>
+          <h1 className="text-3xl font-bold tracking-tight">Produtos Finais</h1>
+          <p className="text-muted-foreground mt-1">Seu cardápio de vendas. Defina o preço e controle o CMV.</p>
         </div>
         <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if (!isOpen) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button size="lg" className="shadow-md">
+              <ShoppingBag className="mr-2 h-5 w-5" />
               Novo Produto
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>{editingId ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+              <DialogTitle className="text-2xl">{editingId ? "Editar Produto" : "Novo Produto"}</DialogTitle>
+              <DialogDescription>
+                Ficha técnica para venda. Fique de olho no CMV!
+              </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nome">Nome do Produto</Label>
-                  <Input
-                    id="nome"
-                    value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="preco">Preço de Venda (R$)</Label>
-                  <Input
-                    id="preco"
-                    type="number"
-                    step="0.01"
-                    value={formData.preco_venda}
-                    onChange={(e) => setFormData({ ...formData, preco_venda: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label>Adicionar Ingredientes</Label>
-                <div className="grid grid-cols-[auto,1fr,1fr,auto] gap-2">
-                  <Select
-                    value={currentItem.tipo_item}
-                    onValueChange={(value) => setCurrentItem({ ...currentItem, tipo_item: value as 'insumo' | 'preparado', item_id: "" })}
-                  >
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="insumo">Insumo</SelectItem>
-                      <SelectItem value="preparado">Preparado</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={currentItem.item_id}
-                    onValueChange={(value) => setCurrentItem({ ...currentItem, item_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currentItem.tipo_item === "insumo" 
-                        ? insumos.map((insumo) => (
-                            <SelectItem key={insumo.id} value={insumo.id}>
-                              {insumo.nome} - {formatCurrency(insumo.custo_por_porcao || 0)}/porção
-                            </SelectItem>
-                          ))
-                        : preparados.map((prep) => (
-                            <SelectItem key={prep.id} value={prep.id}>
-                              {prep.nome} - {formatCurrency(prep.custo_por_unidade || 0)}/un
-                            </SelectItem>
-                          ))
-                      }
-                    </SelectContent>
-                  </Select>
-
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Quantidade"
-                    value={currentItem.quantidade_usada}
-                    onChange={(e) => setCurrentItem({ ...currentItem, quantidade_usada: e.target.value })}
-                  />
-                  <Button type="button" onClick={addItem} variant="secondary">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {itens.length > 0 && (
-                  <div className="space-y-2 mt-3">
-                    {itens.map((item, index) => (
-                      <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
-                        <span className="text-sm">
-                          {item.nome} x {item.quantidade_usada} = {formatCurrency(item.custo)}
-                        </span>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removeItem(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <div className="space-y-1 pt-2 border-t">
-                      <div className="flex justify-between font-semibold">
-                        <span>Custo Total:</span>
-                        <span className="text-primary">
-                          {formatCurrency(itens.reduce((acc, item) => acc + item.custo, 0))}
-                        </span>
-                      </div>
-                      {formData.preco_venda && (
-                        <div className="flex justify-between text-sm">
-                          <span>Margem de Lucro:</span>
-                          <span className="text-success font-medium">
-                            {((parseFloat(formData.preco_venda) - itens.reduce((acc, item) => acc + item.custo, 0)) / itens.reduce((acc, item) => acc + item.custo, 0) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      )}
+            <div className="flex-1 overflow-y-auto py-4 pr-2">
+              <form id="product-form" onSubmit={handleSubmit} className="space-y-6">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome do Produto (Cardápio)</Label>
+                    <Input 
+                      placeholder="Ex: X-Salada Especial" 
+                      value={nomeProduto}
+                      onChange={e => setNomeProduto(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preço de Venda</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">R$</span>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        className="pl-9 font-semibold text-lg"
+                        placeholder="0,00"
+                        value={precoVenda}
+                        onChange={e => setPrecoVenda(e.target.value)}
+                        required
+                      />
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
 
-              <Button type="submit" className="w-full">
-                {editingId ? "Atualizar" : "Criar"} Produto
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base text-primary font-semibold flex items-center gap-2">
+                      <Scale className="h-4 w-4" /> Composição do Produto
+                    </Label>
+                  </div>
+
+                  <div className="bg-muted/30 p-4 rounded-lg border grid grid-cols-[1fr,auto,auto] gap-3 items-end">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Adicionar Item</Label>
+                      <Select value={itemSelecionadoId} onValueChange={setItemSelecionadoId}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue placeholder="Busque insumos ou receitas..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {preparados.length > 0 && <SelectItem value="header-preparados" disabled className="font-bold opacity-100 text-primary">--- Receitas Prontas ---</SelectItem>}
+                          {preparados.map(prep => (
+                            <SelectItem key={prep.id} value={prep.id}>
+                              🍽️ {prep.nome}
+                            </SelectItem>
+                          ))}
+
+                          {insumos.length > 0 && <SelectItem value="header-insumos" disabled className="font-bold opacity-100 text-primary border-t mt-2 pt-2">--- Insumos ---</SelectItem>}
+                          {insumos.map(insumo => (
+                            <SelectItem key={insumo.id} value={insumo.id}>
+                              📦 {insumo.nome} ({insumo.unidade_de_uso})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 w-32">
+                      <Label className="text-xs text-muted-foreground">Qtd. na Receita</Label>
+                      <Input 
+                        type="number" 
+                        step="0.001"
+                        placeholder="0.00"
+                        className="bg-background"
+                        value={qtdItem}
+                        onChange={e => setQtdItem(e.target.value)}
+                      />
+                    </div>
+                    <Button type="button" onClick={adicionarItem} variant="secondary">
+                      <Plus className="h-4 w-4" /> Add
+                    </Button>
+                  </div>
+
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground grid grid-cols-[1fr,auto,auto,auto] gap-4">
+                      <span>Item</span>
+                      <span className="text-right">Qtd.</span>
+                      <span className="text-right">Custo</span>
+                      <span className="w-8"></span>
+                    </div>
+                    <ScrollArea className="h-[200px]">
+                      {itensReceita.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm py-8">
+                          <p>Adicione os ingredientes deste produto.</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {itensReceita.map((item) => (
+                            <div key={item.id_temp} className="px-4 py-3 grid grid-cols-[1fr,auto,auto,auto] gap-4 items-center hover:bg-muted/20 transition-colors">
+                              <span className="text-sm font-medium flex items-center gap-2">
+                                {item.tipo_item === 'preparado' ? '🍽️' : '📦'} {item.nome}
+                              </span>
+                              <span className="text-sm text-right font-mono text-muted-foreground">
+                                {item.quantidade} {item.unidade_uso}
+                              </span>
+                              <span className="text-sm text-right font-mono font-medium">
+                                {formatCurrency(item.custo_total)}
+                              </span>
+                              <div className="flex justify-end">
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removerItem(item.id_temp)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div className="border-t pt-4 mt-auto bg-background">
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-muted/30 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Custo Total</span>
+                  <div className="text-xl font-bold text-foreground mt-1">
+                    {formatCurrency(custoTotal)}
+                  </div>
+                </div>
+                <div className="bg-muted/30 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Lucro Líquido</span>
+                  <div className="text-xl font-bold text-foreground mt-1">
+                    {formatCurrency(lucroLiquido)}
+                  </div>
+                </div>
+                <div className={`p-3 rounded-lg border ${getCmvStatus(cmv)}`}>
+                  <span className="text-xs uppercase tracking-wider font-semibold flex items-center gap-1">
+                    CMV (Meta 32%)
+                  </span>
+                  <div className="text-xl font-bold mt-1 flex items-center gap-1">
+                    {cmv.toFixed(1)}%
+                    {cmv <= 32 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                  </div>
+                </div>
+              </div>
+              <Button type="submit" form="product-form" className="w-full" size="lg">
+                {editingId ? "Atualizar Produto" : "Salvar Produto"}
               </Button>
-            </form>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {produtos.map((produto) => (
-          <Card key={produto.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="text-lg font-semibold">{produto.nome}</div>
-                  <div className="text-2xl font-bold text-primary">
-                    {formatCurrency(produto.preco_venda)}
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => handleDelete(produto.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Custo:</span>
-                <span className="font-semibold">
-                  {formatCurrency(produto.custo_total)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm items-center">
-                <span className="text-muted-foreground">Margem:</span>
-                <div className="flex items-center gap-1">
-                  {(produto.margem_lucro || 0) >= 30 ? (
-                    <TrendingUp className="h-4 w-4 text-success" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-destructive" />
-                  )}
-                  <span className={`font-semibold ${(produto.margem_lucro || 0) >= 30 ? 'text-success' : 'text-destructive'}`}>
-                    {(produto.margem_lucro || 0).toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Lucro:</span>
-                <span className="font-semibold text-success">
-                  {formatCurrency(produto.preco_venda - produto.custo_total)}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex gap-3 items-start shadow-sm">
+        <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="font-semibold text-blue-900 text-sm">Entenda o CMV (Custo da Mercadoria Vendida)</h3>
+          <p className="text-sm text-blue-700 mt-1 leading-relaxed">
+            O CMV indica quanto do seu preço de venda é consumido pelos ingredientes.
+            Para ter um negócio saudável, sua <strong>meta deve ser de 32% ou menos</strong>.
+            Se estiver vermelho, ajuste a receita ou o preço de venda.
+          </p>
+        </div>
       </div>
+
+      {produtos.length === 0 ? (
+        <Card className="border-dashed border-2 bg-muted/50">
+            <CardContent className="flex flex-col items-center justify-center py-10 text-center">
+                <ShoppingBag className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold">Nenhum produto cadastrado</h3>
+                <p className="text-muted-foreground max-w-sm mt-2">
+                    Cadastre seus produtos finais para ver se você está tendo lucro ou prejuízo.
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => setOpen(true)}>
+                    Cadastrar Primeiro Produto
+                </Button>
+            </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {produtos.map((prod) => {
+              const cmvProd = prod.preco_venda > 0 ? (prod.custo_total / prod.preco_venda) * 100 : 0;
+              
+              return (
+                <Card key={prod.id} className="group hover:border-primary/50 transition-colors cursor-pointer" onClick={() => handleEdit(prod)}>
+                    <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                            <CardTitle className="text-lg line-clamp-1">{prod.nome}</CardTitle>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <DollarSign className="h-4 w-4" />
+                                Venda: <span className="font-semibold text-foreground">{formatCurrency(prod.preco_venda)}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleEdit(prod)}>
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:text-destructive" onClick={() => handleDelete(prod.id)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        </div>
+                    </div>
+                    </CardHeader>
+                    <CardContent>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div className="bg-muted p-2 rounded text-center">
+                            <span className="text-[10px] text-muted-foreground block uppercase font-bold">Custo</span>
+                            <span className="font-semibold text-sm">{formatCurrency(prod.custo_total)}</span>
+                        </div>
+                        <div className="bg-muted p-2 rounded text-center">
+                            <span className="text-[10px] text-muted-foreground block uppercase font-bold">Lucro</span>
+                            <span className="font-semibold text-sm">{formatCurrency(prod.preco_venda - prod.custo_total)}</span>
+                        </div>
+                        <div className={`p-2 rounded text-center border ${getCmvStatus(cmvProd)}`}>
+                            <span className="text-[10px] opacity-80 block uppercase font-bold">CMV</span>
+                            <span className="font-bold text-sm">{cmvProd.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                    </CardContent>
+                </Card>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 }

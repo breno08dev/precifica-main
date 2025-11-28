@@ -41,7 +41,7 @@ export type Database = {
           unidade_de_compra: string
           unidade_de_uso: string
           updated_at?: string
-          user_id: string
+          user_id?: string // <--- AGORA OPCIONAL
         }
         Update: {
           categoria?: string
@@ -78,7 +78,7 @@ export type Database = {
           nome: string
           preco_venda: number
           updated_at?: string
-          user_id: string
+          user_id?: string // <--- AGORA OPCIONAL
         }
         Update: {
           created_at?: string
@@ -111,7 +111,7 @@ export type Database = {
           produto_id: string
           quantidade_usada: number
           tipo_item: string
-          user_id: string
+          user_id?: string // <--- AGORA OPCIONAL
         }
         Update: {
           created_at?: string
@@ -152,7 +152,7 @@ export type Database = {
           nome: string
           rendimento_total: number
           updated_at?: string
-          user_id: string
+          user_id?: string // <--- AGORA OPCIONAL
         }
         Update: {
           created_at?: string
@@ -185,7 +185,7 @@ export type Database = {
           preparado_id: string
           quantidade_usada: number
           tipo_item: string
-          user_id: string
+          user_id?: string // <--- AGORA OPCIONAL
         }
         Update: {
           created_at?: string
@@ -205,6 +205,42 @@ export type Database = {
             referencedRelation: "produtos_preparados"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      // Adicionando a tabela profiles que criamos na migração de segurança
+      profiles: {
+        Row: {
+          id: string
+          email: string | null
+          nome_empresa: string | null
+          plano: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          email?: string | null
+          nome_empresa?: string | null
+          plano?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string | null
+          nome_empresa?: string | null
+          plano?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
         ]
       }
     }
