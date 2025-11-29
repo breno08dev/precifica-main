@@ -2,21 +2,21 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge"; // <--- O IMPORT QUE FALTAVA
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Loader2, Sparkles, Zap } from "lucide-react";
+import { Check, Loader2, Sparkles, Zap, Smartphone, QrCode } from "lucide-react";
 
-// Substitua pelos seus IDs de preço da Stripe REAIS
 const PLANOS = {
+
   mensal: {
-    id: "price_1SYFzzRMYU0tPtvw8gyYCoWO",
+    id: "price_1SYFs6HcLElAFxo9byjWDIEx",
     nome: "Mensal",
     preco: "R$ 39,90",
     periodo: "/mês",
     destaque: false,
   },
   anual: {
-    id: "price_1SYG0HRMYU0tPtvwsUhgl67u",
+    id: "price_1SYFsbHcLElAFxo9uBYRuIqA",
     nome: "Anual",
     preco: "R$ 397,00",
     periodo: "/ano",
@@ -29,7 +29,7 @@ export default function Assinatura() {
   const [loading, setLoading] = useState<string | null>(null);
   const { toast } = useToast();
 
-    const handleCheckout = async (priceId: string, plano: string) => {
+  const handleCheckout = async (priceId: string, plano: string) => {
     try {
       setLoading(plano);
       const { data: { session } } = await supabase.auth.getSession();
@@ -47,33 +47,29 @@ export default function Assinatura() {
         },
       });
 
-      if (error) {
-        // Tenta ler a mensagem de erro que o backend enviou
-        let errorMessage = "Erro desconhecido";
-        try {
-            // O corpo da resposta de erro vem aqui
-            const errorBody = await error.context.json();
-            errorMessage = errorBody.error || error.message;
-        } catch {
-            errorMessage = error.message || "Falha na comunicação com o servidor";
-        }
-        throw new Error(errorMessage);
-      }
-
+      if (error) throw error;
       if (!data?.url) throw new Error("Link de pagamento não recebido");
 
       window.location.href = data.url;
 
     } catch (error: any) {
-      console.error("Erro detalhado:", error);
+      console.error("Erro:", error);
       toast({ 
         title: "Erro ao iniciar pagamento", 
-        description: error.message, // Agora vai mostrar o motivo real!
+        description: "Tente novamente ou chame no suporte.",
         variant: "destructive" 
       });
     } finally {
       setLoading(null);
     }
+  };
+
+  const handlePixWhatsapp = () => {
+    // Mensagem pré-definida
+    const text = encodeURIComponent("Olá! Gostaria de assinar o PrecificaAi PRO via PIX.");
+    // Seu número (peguei do arquivo Manual.tsx)
+    const phone = "5516988392871"; 
+    window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
   };
   
   return (
@@ -83,26 +79,60 @@ export default function Assinatura() {
           PrecificaAi <span className="text-primary">Pro</span> <Sparkles className="h-6 w-6 text-yellow-500" />
         </h1>
         <p className="text-xl text-muted-foreground">
-          Desbloqueie todo o potencial do seu negócio. Precifique sem limites e garanta seu lucro.
+          Escolha a melhor forma de pagamento para o seu negócio.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl w-full">
-        {/* Plano Mensal */}
-        <Card className="border-muted hover:border-primary/50 transition-all hover:shadow-lg">
+      <div className="grid md:grid-cols-3 gap-6 max-w-6xl w-full">
+        
+        {/* Opção 1: PIX (WhatsApp) - NOVA OPÇÃO */}
+        <Card className="border-green-200 bg-green-50/30 hover:border-green-500/50 transition-all hover:shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+            LIBERAÇÃO RÁPIDA
+          </div>
           <CardHeader>
-            <CardTitle>{PLANOS.mensal.nome}</CardTitle>
-            <CardDescription>Flexibilidade total para você.</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-green-700">
+              <QrCode className="h-5 w-5" />
+              Pagamento via PIX
+            </CardTitle>
+            <CardDescription>Fale direto comigo no WhatsApp.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1 mb-4">
-              <span className="text-4xl font-bold">{PLANOS.mensal.preco}</span>
-              <span className="text-muted-foreground">{PLANOS.mensal.periodo}</span>
+              <span className="text-3xl font-bold text-foreground">R$ 29,90</span>
+              <span className="text-muted-foreground">/mês</span>
             </div>
             <ul className="space-y-3 text-sm">
-              <li className="flex gap-2"><Check className="h-4 w-4 text-green-500" /> Receitas Ilimitadas</li>
-              <li className="flex gap-2"><Check className="h-4 w-4 text-green-500" /> Cardápio Completo</li>
-              <li className="flex gap-2"><Check className="h-4 w-4 text-green-500" /> Suporte Prioritário</li>
+              <li className="flex gap-2"><Check className="h-4 w-4 text-green-600" /> Sem cartão de crédito</li>
+              <li className="flex gap-2"><Check className="h-4 w-4 text-green-600" /> Atendimento humano</li>
+              <li className="flex gap-2"><Check className="h-4 w-4 text-green-600" /> Desconto na renovação</li>
+            </ul>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full bg-green-600 hover:bg-green-700 text-white shadow-md" 
+              onClick={handlePixWhatsapp}
+            >
+              <Smartphone className="mr-2 h-4 w-4" />
+              Pagar no PIX
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* Opção 2: Cartão Mensal */}
+        <Card className="border-muted hover:border-primary/50 transition-all hover:shadow-md opacity-90">
+          <CardHeader>
+            <CardTitle>{PLANOS.mensal.nome}</CardTitle>
+            <CardDescription>Cobrança automática no cartão.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1 mb-4">
+              <span className="text-3xl font-bold">{PLANOS.mensal.preco}</span>
+              <span className="text-muted-foreground">{PLANOS.mensal.periodo}</span>
+            </div>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li className="flex gap-2"><Check className="h-4 w-4" /> Acesso imediato</li>
+              <li className="flex gap-2"><Check className="h-4 w-4" /> Cancele quando quiser</li>
             </ul>
           </CardContent>
           <CardFooter>
@@ -113,39 +143,37 @@ export default function Assinatura() {
               onClick={() => handleCheckout(PLANOS.mensal.id, 'mensal')}
             >
               {loading === 'mensal' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Assinar Mensal
+              Assinar Cartão
             </Button>
           </CardFooter>
         </Card>
 
-        {/* Plano Anual */}
-        <Card className="border-primary shadow-xl relative overflow-hidden transform md:-translate-y-4 transition-transform hover:-translate-y-6">
+        {/* Opção 3: Cartão Anual */}
+        <Card className="border-primary shadow-xl relative overflow-hidden transform md:-translate-y-2 transition-transform hover:-translate-y-4">
           <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-bl-lg">
-            MAIS POPULAR
+            MELHOR CUSTO
           </div>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {PLANOS.anual.nome}
-              <Badge variant="secondary" className="text-green-600 bg-green-100 border-none hover:bg-green-200">
-                {PLANOS.anual.economia}
-              </Badge>
             </CardTitle>
-            <CardDescription>Compromisso sério com seu lucro.</CardDescription>
+            <Badge variant="secondary" className="text-green-600 bg-green-100 border-none w-fit mt-1">
+              {PLANOS.anual.economia}
+            </Badge>
           </CardHeader>
           <CardContent>
             <div className="flex items-baseline gap-1 mb-4">
-              <span className="text-4xl font-bold">{PLANOS.anual.preco}</span>
+              <span className="text-3xl font-bold">{PLANOS.anual.preco}</span>
               <span className="text-muted-foreground">{PLANOS.anual.periodo}</span>
             </div>
             <ul className="space-y-3 text-sm">
               <li className="flex gap-2"><Check className="h-4 w-4 text-primary" /> <b>Tudo do Mensal</b></li>
               <li className="flex gap-2"><Check className="h-4 w-4 text-primary" /> 2 Meses Grátis</li>
-              <li className="flex gap-2"><Check className="h-4 w-4 text-primary" /> Acesso a novas features beta</li>
             </ul>
           </CardContent>
           <CardFooter>
             <Button 
-              className="w-full text-lg h-12 shadow-md" 
+              className="w-full shadow-md" 
               disabled={!!loading}
               onClick={() => handleCheckout(PLANOS.anual.id, 'anual')}
             >
@@ -154,14 +182,16 @@ export default function Assinatura() {
               ) : (
                 <Zap className="mr-2 h-5 w-5 fill-current" />
               )}
-              Quero Economizar Agora
+              Economizar Agora
             </Button>
           </CardFooter>
         </Card>
+
       </div>
       
-      <p className="mt-8 text-xs text-muted-foreground">
-        Pagamento seguro processado pela Stripe. Cancele quando quiser.
+      <p className="mt-12 text-xs text-muted-foreground text-center max-w-md">
+        Pagamentos no cartão são processados de forma segura pela Stripe. <br/>
+        Para PIX, a liberação é feita manualmente pela nossa equipe após o comprovante.
       </p>
     </div>
   );
