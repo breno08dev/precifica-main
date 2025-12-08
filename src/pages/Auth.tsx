@@ -72,8 +72,15 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-2xl flex items-center justify-center shadow-lg">
-            <ChefHat className="w-8 h-8 text-white" />
+          <div className="mx-auto w-16 h-16 bg-primary to-accent rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="mx-auto w-16 h-16 flex items-center justify-center">
+            {/* Substitua "/favicon.png" pelo nome do seu arquivo de logo na pasta public */}
+            <img 
+              src="/favicon.png" 
+              alt="Logo da Empresa" 
+              className="w-full h-full object-contain" 
+            />
+          </div>
           </div>
           <CardTitle className="text-3xl font-bold">
             {isLogin ? "Entrar" : "Criar Conta"}

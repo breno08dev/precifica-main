@@ -80,7 +80,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="precifica-theme">
+    <ThemeProvider defaultTheme="system" storageKey="precifica-theme">
       <TooltipProvider>
         <Toaster />
         <Sonner />
